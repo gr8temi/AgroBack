@@ -1,5 +1,7 @@
 # Poultry Farm Manager - Backend
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A Django REST Framework backend for managing poultry farm operations, including flock management, financial tracking, user management, and more.
 
 ## Features
