@@ -31,6 +31,7 @@ ALLOWED_HOSTS = ["*"]
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -41,11 +42,13 @@ INSTALLED_APPS = [
     # Third party
     'rest_framework',
     'corsheaders',
+    'channels',
     
     # Local
     'core',
     'flocks',
     'finances',
+    'reports',
 ]
 
 MIDDLEWARE = [
@@ -160,3 +163,29 @@ EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 1025))
 EMAIL_USE_TLS = False
 EMAIL_USE_SSL = False
 DEFAULT_FROM_EMAIL = 'noreply@poultryfarm.com'
+
+# Channels
+ASGI_APPLICATION = 'config.asgi.application'
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [os.environ.get('CELERY_BROKER_URL', 'redis://redis:6379/0')],
+        },
+    },
+}
+
+# Celery
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://redis:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://redis:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+
+CELERY_BEAT_SCHEDULE = {
+    'check-deadlines-every-30-minutes': {
+        'task': 'reports.tasks.check_deadlines',
+        'schedule': 1800 # Run every 30 minutes
+    },
+}

@@ -7,12 +7,17 @@ class Transaction(models.Model):
         ('expense', 'Expense'),
     )
     CATEGORIES = (
+        # Expense categories
         ('feed', 'Feed'),
-        ('birds', 'Birds'),
-        ('eggs', 'Eggs'),
         ('medication', 'Medication'),
         ('equipment', 'Equipment'),
         ('labor', 'Labor'),
+        ('utilities', 'Utilities'),
+        # Income categories
+        ('egg_sales', 'Egg Sales'),
+        ('bird_sales', 'Bird Sales'),
+        ('manure_sales', 'Manure Sales'),
+        # Common
         ('other', 'Other'),
     )
     user = models.ForeignKey(User, on_delete=models.CASCADE)
