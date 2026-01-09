@@ -17,10 +17,10 @@ services:
       - "1025:1025"  # SMTP server
 
   backend:
-    build: ./backend
+    build: .
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
-      - ./backend:/app
+      - ./:/app
     ports:
       - "8000:8000"
     depends_on:
@@ -39,10 +39,10 @@ services:
       - "6379:6379"
 
   celery:
-    build: ./backend
+    build: .
     command: celery -A config worker -l info
     volumes:
-      - ./backend:/app
+      - ./:/app
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/poultry_db
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -52,10 +52,10 @@ services:
       - redis
 
   celery-beat:
-    build: ./backend
+    build: .
     command: celery -A config beat -l info
     volumes:
-      - ./backend:/app
+      - ./:/app
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/poultry_db
       - CELERY_BROKER_URL=redis://redis:6379/0

@@ -21,6 +21,7 @@ class User(AbstractUser):
     ROLE_CHOICES = (
         ('staff', 'Staff'),
         ('manager', 'Manager'),
+        ('financial_manager', 'Financial Manager'),
         ('superuser', 'Superuser'),
     )
 

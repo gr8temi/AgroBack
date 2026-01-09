@@ -1,0 +1,34 @@
+{% extends "emails/base.html" %}
+
+{% block header %}Welcome to {{ farm_name }}!{% endblock %}
+
+{% block content %}
+    <h2>Hello {{ username }},</h2>
+    
+    <p>You have been invited to join <strong>{{ farm_name }}</strong> as a member.</p>
+    
+    <div class="info-box">
+        <div class="info-item">
+            <span class="label">Invitation Code:</span> 
+            <code style="font-size: 1.2em; background: #eaeaea; padding: 2px 5px; border-radius: 3px;">{{ invitation_code }}</code>
+        </div>
+        <div class="info-item">
+            <span class="label">Temporary Password:</span> 
+            <code style="font-size: 1.2em; background: #eaeaea; padding: 2px 5px; border-radius: 3px;">{{ temp_password }}</code>
+        </div>
+    </div>
+
+    <h3>How to get started:</h3>
+    <ol>
+        <li>Open the Poultry Farm App.</li>
+        <li>Select <strong>"Join Farm"</strong>.</li>
+        <li>Enter your <strong>Invitation Code</strong>.</li>
+        <li>Log in using your username <strong>{{ username }}</strong> and the temporary password provided above.</li>
+    </ol>
+    
+    <p><em>Note: You will be prompted to change your password upon your first login.</em></p>
+    
+    <div style="text-align: center;">
+        <a href="#" class="button">Open App</a>
+    </div>
+{% endblock %}

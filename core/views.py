@@ -390,4 +390,17 @@ class RegisterFarmMemberView(viewsets.GenericViewSet):
         }, status=status.HTTP_201_CREATED)
 
 class CustomTokenObtainPairView(TokenObtainPairView):
+    permission_classes = [AllowAny]
     serializer_class = CustomTokenObtainPairSerializer
+
+    def post(self, request, *args, **kwargs):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Login attempt data: {request.data}")
+        try:
+            response = super().post(request, *args, **kwargs)
+            logger.error(f"Login success: {response.status_code}")
+            return response
+        except Exception as e:
+            logger.error(f"Login failed: {str(e)}")
+            raise
