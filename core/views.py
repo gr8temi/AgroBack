@@ -10,11 +10,11 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .models import Farm
+from .models import Farm, PushToken
 from .utils import (generate_invitation_code, generate_temporary_password, 
                     send_invitation_email, generate_password_reset_token, send_password_reset_email)
 from .permissions import IsSuperUser
-from .serializers import UserSerializer, FarmSerializer, CustomTokenObtainPairSerializer
+from .serializers import UserSerializer, FarmSerializer, CustomTokenObtainPairSerializer, PushTokenSerializer
 
 User = get_user_model()
 
@@ -396,7 +396,6 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
         import logging
         logger = logging.getLogger(__name__)
-        logger.error(f"Login attempt data: {request.data}")
         try:
             response = super().post(request, *args, **kwargs)
             logger.error(f"Login success: {response.status_code}")
@@ -404,3 +403,21 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         except Exception as e:
             logger.error(f"Login failed: {str(e)}")
             raise
+
+
+class RegisterPushTokenView(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+    
+    def create(self, request):
+        serializer = PushTokenSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        token_str = serializer.validated_data['token']
+        
+        token, created = PushToken.objects.get_or_create(token=token_str, defaults={'user': request.user})
+        
+        if not created and token.user != request.user:
+            token.user = request.user
+            token.save()
+            
+        return Response({'status': 'success'}, status=status.HTTP_201_CREATED)
+

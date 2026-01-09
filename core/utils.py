@@ -8,6 +8,15 @@ from django.utils import timezone
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 
+from exponent_server_sdk import (
+    PushClient,
+    PushMessage,
+    PushServerError,
+    PushTicketError,
+)
+
+from .models import PushToken
+
 
 def generate_invitation_code():
     """Generate a unique 8-character invitation code."""
@@ -91,3 +100,55 @@ def send_password_reset_email(user, reset_token):
         print(f"✗ Error sending email: {e}")
         print(f"\nPassword Reset Token for {user.username}: {reset_token}")
 
+
+def send_push_notification(users, title, message, data=None):
+    """
+    Send Expo Push Notifications to a list of users.
+    """
+    # Get tokens for these users
+    # Filter for active tokens? For now just get all.
+    tokens = PushToken.objects.filter(user__in=users).values_list('token', flat=True)
+    
+    if not tokens:
+        print("No push tokens found for these users.")
+        return
+
+    push_messages = []
+    for token in tokens:
+        try:
+            push_messages.append(
+                PushMessage(
+                    to=token,
+                    title=title,
+                    body=message,
+                    data=data,
+                    sound='default',
+                )
+            )
+        except Exception as e:
+            print(f"Error creating push message for token {token}: {e}")
+
+    try:
+        response = PushClient().publish_multiple(push_messages)
+        print(f"Sent {len(push_messages)} push notifications.")
+        
+        # Optional: Inspect response for errors (like invalid tokens) and remove them
+        try:
+            breakpoint()
+            for ticket in response:
+                print(ticket.__dict__, response.__dict__)
+                #  if ticket.is_error():
+                #      print(f"Push error: {ticket.message} - {ticket.details}")
+                #      if ticket.details and ticket.details.get('error') == 'DeviceNotRegistered':
+                #          # Remove invalid token
+                #          # Note: mapping back to DB object from ticket is hard in batch without tracking indices
+                #          # For now, just logging.
+                #          pass
+        except Exception as e:
+             print(f"Error inspecting push response: {e}")
+
+    except PushServerError as exc:
+        print(f"Push Server Error: {exc.errors}")
+        print(f"Push Server Response: {exc.response_data}")
+    except Exception as exc:
+        print(f"Error sending push notifications: {exc}")

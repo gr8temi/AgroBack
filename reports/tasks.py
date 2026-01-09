@@ -1,19 +1,16 @@
-import socketio
 import os
 from celery import shared_task
 from django.utils import timezone
 from datetime import timedelta
-from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
 from .models import ReportConfig
 from core.models import User
-from core.models import User
+from core.utils import send_push_notification
 
 @shared_task
 def check_deadlines():
     """
     Checks for approaching deadlines (1 hour remaining) and passed deadlines.
-    Sends notifications via WebSockets.
+    Sends notifications via Expo Push Notifications.
     """
     print("DEBUG: check_deadlines task started")
     now = timezone.now()
@@ -23,14 +20,7 @@ def check_deadlines():
     
     configs = ReportConfig.objects.filter(is_enabled=True, deadline_time__isnull=False)
     print(f"DEBUG: Found {configs.count()} enabled report configs")
-    print(os.environ.get('CELERY_BROKER_URL', 'redis://redis:6379/0'), "CELERY_BROKER_URL")
     
-    channel_layer = get_channel_layer()
-    
-    # Setup Socket.IO manager once
-    mgr = socketio.RedisManager(os.environ.get('CELERY_BROKER_URL', 'redis://redis:6379/0'), write_only=True)
-    sio = socketio.Server(client_manager=mgr)
-
     for config in configs:
         # Construct deadline datetime for today
         deadline_time = config.deadline_time
@@ -48,17 +38,16 @@ def check_deadlines():
             print(f"DEBUG: Sending imminent deadline reminder for Farm {config.farm.name}")
             # Notify Staff AND Admins
             recipients = config.farm.members.filter(role__in=['staff', 'manager', 'superuser', 'admin'])
-            for member in recipients:
-                print(f"DEBUG: Emitting to user_{member.id}")
-                sio.emit('notification', {'message': f"Reminder: Daily Report is due soon ({deadline_time})."}, room=f"user_{member.id}")
+            
+            message = f"Reminder: Daily Report is due soon ({deadline_time})."
+            send_push_notification(recipients, "Report Deadline", message, data={'type': 'deadline_reminder', 'config_id': config.id})
 
         # Passed Deadline (e.g. 5 mins past)
         if timedelta(minutes=-5) >= time_diff >= timedelta(minutes=-15):
              print(f"DEBUG: Sending past deadline alert for Farm {config.farm.name}")
              # Notify Admin
              admins = config.farm.members.filter(role__in=['superuser', 'manager', 'admin']) 
-             for admin in admins:
-                print(f"DEBUG: Emitting to user_{admin.id}")
-                mgr = socketio.RedisManager(os.environ.get('CELERY_BROKER_URL', 'redis://redis:6379/0'), write_only=True)
-                mgr.emit('notification', {'message': f"Alert: Daily Report deadline passed for {config.farm.name}."}, room=f"user_{admin.id}")
+             
+             message = f"Alert: Daily Report deadline passed for {config.farm.name}."
+             send_push_notification(admins, "Deadline Missed", message, data={'type': 'deadline_missed', 'config_id': config.id})
 

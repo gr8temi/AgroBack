@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from .models import Farm
+from .models import Farm, PushToken
 
 User = get_user_model()
 
@@ -12,6 +12,11 @@ class FarmSerializer(serializers.ModelSerializer):
         model = Farm
         fields = ('id', 'name', 'code', 'owner', 'created_at')
         read_only_fields = ('code', 'owner', 'created_at')
+
+class PushTokenSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PushToken
+        fields = ('token',)
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
