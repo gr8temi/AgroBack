@@ -1,4 +1,3 @@
-import os
 from celery import shared_task
 from django.utils import timezone
 from datetime import timedelta
@@ -80,7 +79,7 @@ def send_reminder_notification(config, notification_type, message, now):
     and records the notification timestamp on the config.
     """
     recipients = config.farm.members.filter(
-        role__in=["staff", "manager", "superuser", "admin"]
+        role__in=["staff", "manager", "financial_manager", "superuser"]
     )
     send_push_notification(
         recipients,
@@ -106,7 +105,7 @@ def handle_missed_deadline(config, time_diff, now):
     ):
         return
 
-    admins = config.farm.members.filter(role__in=["superuser", "manager", "admin"])
+    admins = config.farm.members.filter(role__in=["superuser", "manager"])
     message = f"Alert: Daily Report deadline passed for {config.farm.name}."
     send_push_notification(
         admins,

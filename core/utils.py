@@ -29,8 +29,8 @@ def generate_temporary_password():
 
 
 def generate_password_reset_token():
-    """Generate a 6-digit password reset code."""
-    return "".join([str(secrets.randbelow(10)) for _ in range(6)])
+    """Generate a secure password reset token."""
+    return secrets.token_urlsafe(24)
 
 
 def send_invitation_email(user, temp_password):
@@ -60,7 +60,7 @@ def send_invitation_email(user, temp_password):
             fail_silently=False,
         )
     except Exception as e:
-        print(f"Error sending invitation email to {user.username}: {e}")
+        _logger.error("Error sending invitation email to %s: %s", user.username, e)
 
 
 def send_password_reset_email(user, reset_token):
@@ -88,30 +88,51 @@ def send_password_reset_email(user, reset_token):
             fail_silently=False,
         )
     except Exception as e:
-        print(f"Error sending password reset email to {user.username}: {e}")
+        _logger.error("Error sending password reset email to %s: %s", user.username, e)
+
+
+import logging
+
+_logger = logging.getLogger(__name__)
+_push_client = PushClient()
 
 
 def send_push_notification(users, title, message, data=None):
     """
     Send Expo Push Notifications to a list of users.
     """
-    tokens = PushToken.objects.filter(user__in=users).values_list("token", flat=True)
+    push_tokens = list(
+        PushToken.objects.filter(user__in=users).values_list("id", "token")
+    )
 
-    if not tokens:
+    if not push_tokens:
         return
 
-    for token in tokens:
-        try:
-            PushClient().publish(
-                PushMessage(
-                    to=token,
-                    title=title,
-                    body=message,
-                    data=data,
-                    sound="default",
-                )
+    push_messages = []
+    token_id_map = {}
+    for token_id, token_str in push_tokens:
+        push_messages.append(
+            PushMessage(
+                to=token_str,
+                title=title,
+                body=message,
+                data=data,
+                sound="default",
             )
-        except PushServerError as exc:
-            print(f"Push server error for token {token}: {exc.errors}")
-        except Exception as exc:
-            print(f"Error sending push notification to token {token}: {exc}")
+        )
+        token_id_map[token_str] = token_id
+
+    try:
+        receipts = _push_client.publish_multiple(push_messages)
+        invalid_ids = []
+        for receipt in receipts:
+            if receipt.status == "error" and receipt.details and receipt.details.get("error") == "DeviceNotRegistered":
+                token_str = receipt.push_message.to if hasattr(receipt, "push_message") else None
+                if token_str and token_str in token_id_map:
+                    invalid_ids.append(token_id_map[token_str])
+        if invalid_ids:
+            PushToken.objects.filter(id__in=invalid_ids).delete()
+    except PushServerError as exc:
+        _logger.error("Push server error: %s", exc.errors)
+    except Exception as exc:
+        _logger.error("Error sending push notifications: %s", exc)

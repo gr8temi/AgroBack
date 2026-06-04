@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+.env
+db.sqlite3
+celerybeat-schedule
+celerybeat-schedule.dir
+celerybeat-schedule.bak
+celerybeat-schedule.dat
+.DS_Store
+*.log

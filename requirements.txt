@@ -6,8 +6,4 @@ djangorestframework-simplejwt
 
 celery
 redis
-channels
-channels_redis
-daphne
-python-socketio
 exponent_server_sdk

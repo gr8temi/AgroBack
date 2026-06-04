@@ -1,7 +1,7 @@
 .PHONY: run stop build migrate migrations superuser test shell bash logs
 
 # Docker Compose Commands (Run from backend/ directory)
-DC = docker-compose -f ../docker-compose.yml
+DC = docker-compose -f docker-compose.yml
 
 run:
 	$(DC) up
