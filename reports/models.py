@@ -7,9 +7,25 @@ class ReportConfig(models.Model):
     deadline_time = models.TimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    last_notified_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"ReportConfig for {self.farm.name}"
+
+    def save(self, *args, **kwargs):
+        # Check if this is an update (pk exists)
+        if self.pk:
+            try:
+                # Get the old value from the database
+                old_instance = ReportConfig.objects.get(pk=self.pk)
+                # If deadline_time has changed, reset last_notified_at
+                if old_instance.deadline_time != self.deadline_time:
+                    self.last_notified_at = None
+            except ReportConfig.DoesNotExist:
+                # Should not happen if self.pk is set, but good practice
+                pass
+        
+        super().save(*args, **kwargs)
 
 class Question(models.Model):
     QUESTION_TYPES = (

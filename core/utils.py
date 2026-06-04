@@ -30,7 +30,7 @@ def generate_temporary_password():
 
 def generate_password_reset_token():
     """Generate a 6-digit password reset code."""
-    return ''.join([str(secrets.randbelow(10)) for _ in range(6)])
+    return "".join([str(secrets.randbelow(10)) for _ in range(6)])
 
 
 def send_invitation_email(user, temp_password):
@@ -39,17 +39,17 @@ def send_invitation_email(user, temp_password):
     Uses mailcatcher in development for testing.
     """
     subject = f"Welcome to {user.farm.name}!"
-    
+
     context = {
-        'username': user.username,
-        'farm_name': user.farm.name,
-        'invitation_code': user.invitation_code,
-        'temp_password': temp_password,
+        "username": user.username,
+        "farm_name": user.farm.name,
+        "invitation_code": user.invitation_code,
+        "temp_password": temp_password,
     }
-    
-    html_message = render_to_string('emails/invitation.html', context)
+
+    html_message = render_to_string("emails/invitation.html", context)
     plain_message = strip_tags(html_message)
-    
+
     try:
         send_mail(
             subject=subject,
@@ -59,14 +59,8 @@ def send_invitation_email(user, temp_password):
             html_message=html_message,
             fail_silently=False,
         )
-        print(f"✓ Invitation email sent to {user.email or 'no email'}")
-        print(f"  View at: http://localhost:1080")
     except Exception as e:
-        print(f"✗ Error sending email: {e}")
-        # Log the details anyway for debugging
-        print(f"\nInvitation Details for {user.username}:")
-        print(f"  Code: {user.invitation_code}")
-        print(f"  Temp Password: {temp_password}")
+        print(f"Error sending invitation email to {user.username}: {e}")
 
 
 def send_password_reset_email(user, reset_token):
@@ -75,15 +69,15 @@ def send_password_reset_email(user, reset_token):
     Uses mailcatcher in development for testing.
     """
     subject = "Password Reset Request"
-    
+
     context = {
-        'username': user.username,
-        'reset_token': reset_token,
+        "username": user.username,
+        "reset_token": reset_token,
     }
-    
-    html_message = render_to_string('emails/password_reset.html', context)
+
+    html_message = render_to_string("emails/password_reset.html", context)
     plain_message = strip_tags(html_message)
-    
+
     try:
         send_mail(
             subject=subject,
@@ -93,62 +87,31 @@ def send_password_reset_email(user, reset_token):
             html_message=html_message,
             fail_silently=False,
         )
-        print(f"✓ Password reset email sent to {user.email or 'no email'}")
-        print(f"  View at: http://localhost:1080")
-        print(f"  Token: {reset_token}")
     except Exception as e:
-        print(f"✗ Error sending email: {e}")
-        print(f"\nPassword Reset Token for {user.username}: {reset_token}")
+        print(f"Error sending password reset email to {user.username}: {e}")
 
 
 def send_push_notification(users, title, message, data=None):
     """
     Send Expo Push Notifications to a list of users.
     """
-    # Get tokens for these users
-    # Filter for active tokens? For now just get all.
-    tokens = PushToken.objects.filter(user__in=users).values_list('token', flat=True)
-    
+    tokens = PushToken.objects.filter(user__in=users).values_list("token", flat=True)
+
     if not tokens:
-        print("No push tokens found for these users.")
         return
 
-    push_messages = []
     for token in tokens:
         try:
-            push_messages.append(
+            PushClient().publish(
                 PushMessage(
                     to=token,
                     title=title,
                     body=message,
                     data=data,
-                    sound='default',
+                    sound="default",
                 )
             )
-        except Exception as e:
-            print(f"Error creating push message for token {token}: {e}")
-
-    try:
-        response = PushClient().publish_multiple(push_messages)
-        print(f"Sent {len(push_messages)} push notifications.")
-        
-        # Optional: Inspect response for errors (like invalid tokens) and remove them
-        try:
-            breakpoint()
-            for ticket in response:
-                print(ticket.__dict__, response.__dict__)
-                #  if ticket.is_error():
-                #      print(f"Push error: {ticket.message} - {ticket.details}")
-                #      if ticket.details and ticket.details.get('error') == 'DeviceNotRegistered':
-                #          # Remove invalid token
-                #          # Note: mapping back to DB object from ticket is hard in batch without tracking indices
-                #          # For now, just logging.
-                #          pass
-        except Exception as e:
-             print(f"Error inspecting push response: {e}")
-
-    except PushServerError as exc:
-        print(f"Push Server Error: {exc.errors}")
-        print(f"Push Server Response: {exc.response_data}")
-    except Exception as exc:
-        print(f"Error sending push notifications: {exc}")
+        except PushServerError as exc:
+            print(f"Push server error for token {token}: {exc.errors}")
+        except Exception as exc:
+            print(f"Error sending push notification to token {token}: {exc}")
