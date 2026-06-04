@@ -176,7 +176,11 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_BEAT_SCHEDULE = {
     "check-deadlines-every-60-seconds": {
         "task": "reports.tasks.check_deadlines",
-        "schedule": 60,  # Run every 60 seconds
+        "schedule": 60,
+    },
+    "refresh-flock-stats-hourly": {
+        "task": "flocks.tasks.refresh_active_flock_stats",
+        "schedule": 3600,
     },
 }
 

@@ -13,4 +13,6 @@ class TransactionSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request and value.farm_id != request.user.farm_id:
             raise serializers.ValidationError("Flock does not belong to your farm.")
+        if value.status == 'closed':
+            raise serializers.ValidationError("Cannot add transactions to a closed cycle.")
         return value
