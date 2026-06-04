@@ -25,7 +25,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('id', 'username', 'email', 'role', 'password', 'farm', 'has_joined', 'can_manage_flocks', 'can_manage_finances', 'can_manage_users', 'can_add_logs')
-        read_only_fields = ('has_joined',)
+        read_only_fields = ('has_joined', 'can_manage_flocks', 'can_manage_finances', 'can_manage_users', 'can_add_logs')
 
     def create(self, validated_data):
         # Extract fields that may be passed via save() but not in validated_data

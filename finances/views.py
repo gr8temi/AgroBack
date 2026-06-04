@@ -30,7 +30,10 @@ class TransactionViewSet(viewsets.ModelViewSet):
         Query params:
         - period: number of days to analyze (default: 30)
         """
-        period = int(request.query_params.get('period', 30))
+        try:
+            period = min(max(int(request.query_params.get('period', 30)), 1), 365)
+        except (ValueError, TypeError):
+            period = 30
         farm = request.user.farm
         
         # Calculate date range

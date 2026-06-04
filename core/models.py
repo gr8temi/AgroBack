@@ -34,7 +34,7 @@ class User(AbstractUser):
     has_joined = models.BooleanField(default=False)  # Tracks if user accepted invitation
     
     # Password reset fields
-    password_reset_token = models.CharField(max_length=6, null=True, blank=True)
+    password_reset_token = models.CharField(max_length=64, null=True, blank=True)
     password_reset_token_expires = models.DateTimeField(null=True, blank=True)
     
     # Dynamic Permissions
@@ -44,28 +44,23 @@ class User(AbstractUser):
     can_add_logs = models.BooleanField(default=False) # Staff can usually add logs
 
     def save(self, *args, **kwargs):
-        # Auto-set permissions based on role if it's a new user or role changed
-        # This provides good defaults while allowing overrides
-        if self.role == 'superuser':
-            self.can_manage_flocks = True
-            self.can_manage_finances = True
-            self.can_manage_users = True
-            self.can_add_logs = True
-        elif self.role == 'manager':
-            self.can_manage_flocks = True
-            self.can_manage_finances = True
-            self.can_manage_users = False
-            self.can_add_logs = True
-        elif self.role == 'financial_manager':
-            self.can_manage_flocks = False
-            self.can_manage_finances = True
-            self.can_manage_users = False
-            self.can_add_logs = False
-        elif self.role == 'staff':
-            # Staff defaults: can view flocks (handled by view logic) and add logs
-            # They shouldn't manage flocks/finances/users by default
-            pass 
-            
+        if self._state.adding:
+            if self.role == 'superuser':
+                self.can_manage_flocks = True
+                self.can_manage_finances = True
+                self.can_manage_users = True
+                self.can_add_logs = True
+            elif self.role == 'manager':
+                self.can_manage_flocks = True
+                self.can_manage_finances = True
+                self.can_manage_users = False
+                self.can_add_logs = True
+            elif self.role == 'financial_manager':
+                self.can_manage_flocks = False
+                self.can_manage_finances = True
+                self.can_manage_users = False
+                self.can_add_logs = False
+
         super().save(*args, **kwargs)
 
 class PushToken(models.Model):

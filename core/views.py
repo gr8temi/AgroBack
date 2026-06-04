@@ -1,4 +1,8 @@
+import logging
+
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 from datetime import timedelta
@@ -7,6 +11,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
@@ -25,6 +30,12 @@ from .serializers import (
     CustomTokenObtainPairSerializer,
     PushTokenSerializer,
 )
+
+logger = logging.getLogger(__name__)
+
+
+class AuthRateThrottle(AnonRateThrottle):
+    rate = "5/minute"
 
 User = get_user_model()
 
@@ -69,7 +80,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
         return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
 
-    @action(detail=False, methods=["post"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["post"], permission_classes=[AllowAny], throttle_classes=[AuthRateThrottle])
     def validate_invitation(self, request):
         """Validate invitation code and return user info."""
         code = request.data.get("invitation_code", None)
@@ -126,14 +137,18 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Set new password and clear temporary flag
+        try:
+            validate_password(new_password, user)
+        except ValidationError as e:
+            return Response({"error": e.messages}, status=status.HTTP_400_BAD_REQUEST)
+
         user.set_password(new_password)
         user.is_password_temporary = False
         user.save()
 
         return Response({"message": "Password reset successfully"})
 
-    @action(detail=False, methods=["post"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["post"], permission_classes=[AllowAny], throttle_classes=[AuthRateThrottle])
     def request_password_reset(self, request):
         """Request a password reset token via email."""
         username = request.data.get("username")
@@ -171,7 +186,7 @@ class UserViewSet(viewsets.ModelViewSet):
             )
 
     @transaction.atomic
-    @action(detail=False, methods=["post"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["post"], permission_classes=[AllowAny], throttle_classes=[AuthRateThrottle])
     def reset_password_with_token(self, request):
         """Reset password using a reset token."""
         reset_token = request.data.get("reset_token")
@@ -193,7 +208,11 @@ class UserViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Reset the password
+            try:
+                validate_password(new_password, user)
+            except ValidationError as e:
+                return Response({"error": e.messages}, status=status.HTTP_400_BAD_REQUEST)
+
             user.set_password(new_password)
             user.password_reset_token = None
             user.password_reset_token_expires = None
@@ -238,6 +257,11 @@ class UserViewSet(viewsets.ModelViewSet):
     def transfer_ownership(self, request, pk=None):
         """Transfer farm ownership to another user and delete current superuser."""
         current_user = self.get_object()
+        if current_user != request.user:
+            return Response(
+                {"error": "You can only transfer ownership from your own account"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         new_superuser_id = request.data.get("new_superuser_id")
 
         if not new_superuser_id:
@@ -288,9 +312,14 @@ class UserViewSet(viewsets.ModelViewSet):
 
 
 class FarmViewSet(viewsets.ModelViewSet):
-    queryset = Farm.objects.all()
     serializer_class = FarmSerializer
     permission_classes = [IsAuthenticated]
+    http_method_names = ["get", "head", "options", "post"]
+
+    def get_queryset(self):
+        if self.request.user.farm:
+            return Farm.objects.filter(id=self.request.user.farm_id)
+        return Farm.objects.none()
 
     @transaction.atomic
     @action(detail=False, methods=["post"])
@@ -497,26 +526,13 @@ class RegisterFarmMemberView(viewsets.GenericViewSet):
 class CustomTokenObtainPairView(TokenObtainPairView):
     permission_classes = [AllowAny]
     serializer_class = CustomTokenObtainPairSerializer
-
-    def post(self, request, *args, **kwargs):
-        import logging
-
-        logger = logging.getLogger(__name__)
-        try:
-            response = super().post(request, *args, **kwargs)
-            logger.error(f"Login success: {response.status_code}")
-            return response
-        except Exception as e:
-            logger.error(f"Login failed: {str(e)}")
-            raise
+    throttle_classes = [AuthRateThrottle]
 
 
 class RegisterPushTokenView(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def create(self, request):
-        # We don't use the serializer for validation because it enforces unique=True
-        # which fails if the token already exists (but we just want to update/claim it).
         token_str = request.data.get("token")
 
         if not token_str:
@@ -524,12 +540,13 @@ class RegisterPushTokenView(viewsets.ViewSet):
                 {"error": "Token is required"}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        token, created = PushToken.objects.get_or_create(
+        PushToken.objects.update_or_create(
             token=token_str, defaults={"user": request.user}
         )
 
-        if not created and token.user != request.user:
-            token.user = request.user
-            token.save()
+        # Clean up old tokens for this user (keep last 5)
+        user_tokens = PushToken.objects.filter(user=request.user).order_by("-created_at")
+        stale_ids = user_tokens[5:].values_list("id", flat=True)
+        PushToken.objects.filter(id__in=list(stale_ids)).delete()
 
         return Response({"status": "success"}, status=status.HTTP_201_CREATED)

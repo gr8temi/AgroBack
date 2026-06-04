@@ -11,9 +11,16 @@ from .serializers import (
 from core.utils import send_push_notification
 
 
+from core.permissions import IsManager
+
+
 class ReportConfigViewSet(viewsets.ModelViewSet):
     serializer_class = ReportConfigSerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [permissions.IsAuthenticated()]
+        return [IsManager()]
 
     def get_queryset(self):
         user = self.request.user
@@ -52,7 +59,11 @@ class ReportConfigViewSet(viewsets.ModelViewSet):
 
 class QuestionViewSet(viewsets.ModelViewSet):
     serializer_class = QuestionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [permissions.IsAuthenticated()]
+        return [IsManager()]
 
     def get_queryset(self):
         user = self.request.user
