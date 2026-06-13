@@ -7,14 +7,18 @@ from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.permissions import IsManager
+from core.permissions import IsManager, CanManageFinances
 
 from .models import Transaction
 from .serializers import TransactionSerializer
 
 class TransactionViewSet(viewsets.ModelViewSet):
     serializer_class = TransactionSerializer
-    permission_classes = [IsManager] # Only managers can manage finances
+
+    def get_permissions(self):
+        if self.action == 'destroy':
+            return [IsManager()]
+        return [CanManageFinances()]
 
     def get_queryset(self):
         return Transaction.objects.filter(farm=self.request.user.farm)
