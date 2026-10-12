@@ -10,7 +10,7 @@ User = get_user_model()
 class FarmSerializer(serializers.ModelSerializer):
     class Meta:
         model = Farm
-        fields = ('id', 'name', 'code', 'owner', 'created_at')
+        fields = ('id', 'name', 'code', 'owner', 'base_currency', 'phone', 'email', 'address', 'payment_details', 'created_at')
         read_only_fields = ('code', 'owner', 'created_at')
 
 class PushTokenSerializer(serializers.ModelSerializer):

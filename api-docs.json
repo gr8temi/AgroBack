@@ -1,0 +1,1103 @@
+{
+  "info": {
+    "title": "AgroBack API",
+    "version": "1.0.0",
+    "description": "Poultry farm management backend API. All endpoints (except auth/registration) require a Bearer JWT token in the Authorization header. Amounts are stored and returned in the farm's base currency unless ?currency= is specified for display conversion."
+  },
+  "baseUrl": "/api",
+  "authentication": {
+    "type": "Bearer JWT",
+    "header": "Authorization: Bearer <access_token>",
+    "tokenEndpoint": "/api/token/",
+    "refreshEndpoint": "/api/token/refresh/",
+    "notes": "Access tokens are short-lived. Use the refresh token to obtain new access tokens."
+  },
+  "roles": {
+    "superuser": {
+      "description": "Farm owner. Full access to everything.",
+      "permissions": ["can_manage_flocks", "can_manage_finances", "can_manage_users", "can_add_logs"]
+    },
+    "manager": {
+      "description": "Farm manager. Can manage flocks and finances, add logs, but cannot manage users.",
+      "permissions": ["can_manage_flocks", "can_manage_finances", "can_add_logs"]
+    },
+    "financial_manager": {
+      "description": "Finance-only role. Can manage finances but not flocks or users.",
+      "permissions": ["can_manage_finances"]
+    },
+    "staff": {
+      "description": "Basic authenticated user. Read access to most resources, can add logs and submit reports.",
+      "permissions": ["can_add_logs"]
+    }
+  },
+  "currencySupport": {
+    "description": "Most endpoints that return monetary amounts support a ?currency= query parameter. When provided, amounts are converted from the farm's base currency to the requested display currency. The original stored values are not affected.",
+    "supportedCurrencies": ["NGN", "USD", "KES", "GHS", "ZAR", "GBP", "EUR"],
+    "defaultCurrency": "NGN"
+  },
+  "endpoints": {
+    "auth": {
+      "login": {
+        "method": "POST",
+        "path": "/api/token/",
+        "auth": false,
+        "throttle": "5/minute",
+        "description": "Obtain JWT access and refresh tokens.",
+        "requestBody": {
+          "username": { "type": "string", "required": true },
+          "password": { "type": "string", "required": true }
+        },
+        "response": {
+          "access": "string (JWT access token)",
+          "refresh": "string (JWT refresh token)",
+          "role": "string (user role)",
+          "username": "string",
+          "is_password_temporary": "boolean",
+          "permissions": {
+            "can_manage_flocks": "boolean",
+            "can_manage_finances": "boolean",
+            "can_manage_users": "boolean",
+            "can_add_logs": "boolean"
+          },
+          "farm": {
+            "id": "integer",
+            "name": "string",
+            "code": "string",
+            "owner": "integer (user ID)",
+            "base_currency": "string",
+            "created_at": "datetime"
+          }
+        }
+      },
+      "refreshToken": {
+        "method": "POST",
+        "path": "/api/token/refresh/",
+        "auth": false,
+        "description": "Refresh an expired access token.",
+        "requestBody": {
+          "refresh": { "type": "string", "required": true, "description": "Refresh token from login" }
+        },
+        "response": {
+          "access": "string (new JWT access token)"
+        }
+      }
+    },
+
+    "registration": {
+      "registerFarmOwner": {
+        "method": "POST",
+        "path": "/api/register-owner/register/",
+        "auth": false,
+        "description": "Register a new user and create a new farm. The user becomes the farm superuser.",
+        "requestBody": {
+          "username": { "type": "string", "required": true },
+          "password": { "type": "string", "required": true },
+          "email": { "type": "string", "required": false },
+          "farm_name": { "type": "string", "required": true }
+        },
+        "response": {
+          "access": "string",
+          "refresh": "string",
+          "username": "string",
+          "role": "string",
+          "permissions": {
+            "can_manage_flocks": "boolean",
+            "can_manage_finances": "boolean",
+            "can_manage_users": "boolean",
+            "can_add_logs": "boolean"
+          },
+          "farm": "Farm object"
+        }
+      },
+      "registerFarmMember": {
+        "method": "POST",
+        "path": "/api/register-member/register/",
+        "auth": false,
+        "description": "Register a new user and join an existing farm via farm code. The user gets the 'staff' role.",
+        "requestBody": {
+          "username": { "type": "string", "required": true },
+          "password": { "type": "string", "required": true },
+          "email": { "type": "string", "required": false },
+          "farm_code": { "type": "string", "required": true, "description": "8-character farm code" }
+        },
+        "response": {
+          "access": "string",
+          "refresh": "string",
+          "username": "string",
+          "role": "string",
+          "permissions": "object",
+          "farm": "Farm object"
+        }
+      }
+    },
+
+    "users": {
+      "list": {
+        "method": "GET",
+        "path": "/api/users/",
+        "auth": true,
+        "permission": "superuser or can_manage_users",
+        "description": "List all users in the current farm."
+      },
+      "retrieve": {
+        "method": "GET",
+        "path": "/api/users/{id}/",
+        "auth": true,
+        "permission": "superuser or can_manage_users",
+        "description": "Get a specific user's details."
+      },
+      "create": {
+        "method": "POST",
+        "path": "/api/users/",
+        "auth": true,
+        "permission": "superuser or can_manage_users",
+        "description": "Invite a new user to the farm. Generates an invitation code and temporary password. Sends invitation email.",
+        "requestBody": {
+          "username": { "type": "string", "required": true },
+          "email": { "type": "string", "required": false },
+          "role": { "type": "string", "required": false, "enum": ["staff", "manager", "financial_manager", "superuser"], "default": "staff" }
+        },
+        "response": {
+          "id": "integer",
+          "username": "string",
+          "email": "string",
+          "role": "string",
+          "invitation_code": "string (generated)",
+          "temporary_password": "string (generated)",
+          "farm": "Farm object",
+          "has_joined": "boolean",
+          "can_manage_flocks": "boolean",
+          "can_manage_finances": "boolean",
+          "can_manage_users": "boolean",
+          "can_add_logs": "boolean"
+        }
+      },
+      "update": {
+        "method": "PUT",
+        "path": "/api/users/{id}/",
+        "auth": true,
+        "permission": "superuser or can_manage_users",
+        "description": "Update a user's details."
+      },
+      "partialUpdate": {
+        "method": "PATCH",
+        "path": "/api/users/{id}/",
+        "auth": true,
+        "permission": "superuser or can_manage_users",
+        "description": "Partially update a user's details."
+      },
+      "delete": {
+        "method": "DELETE",
+        "path": "/api/users/{id}/",
+        "auth": true,
+        "permission": "superuser or can_manage_users",
+        "description": "Delete a user. Cannot delete the last superuser in a farm."
+      },
+      "validateInvitation": {
+        "method": "POST",
+        "path": "/api/users/validate_invitation/",
+        "auth": false,
+        "throttle": "5/minute",
+        "description": "Validate an invitation code and return user/farm info. Marks user as joined on first validation.",
+        "requestBody": {
+          "invitation_code": { "type": "string", "required": true }
+        },
+        "response": {
+          "valid": "boolean",
+          "username": "string",
+          "farm_name": "string",
+          "is_password_temporary": "boolean",
+          "already_joined": "boolean"
+        }
+      },
+      "resetPassword": {
+        "method": "POST",
+        "path": "/api/users/reset_password/",
+        "auth": true,
+        "description": "Reset password for a user with a temporary password. Only works if is_password_temporary is true.",
+        "requestBody": {
+          "new_password": { "type": "string", "required": true }
+        }
+      },
+      "requestPasswordReset": {
+        "method": "POST",
+        "path": "/api/users/request_password_reset/",
+        "auth": false,
+        "throttle": "5/minute",
+        "description": "Request a password reset token via email. Token valid for 1 hour.",
+        "requestBody": {
+          "username": { "type": "string", "required": true }
+        }
+      },
+      "resetPasswordWithToken": {
+        "method": "POST",
+        "path": "/api/users/reset_password_with_token/",
+        "auth": false,
+        "throttle": "5/minute",
+        "description": "Reset password using a reset token received via email.",
+        "requestBody": {
+          "reset_token": { "type": "string", "required": true },
+          "new_password": { "type": "string", "required": true }
+        }
+      },
+      "transferOwnership": {
+        "method": "POST",
+        "path": "/api/users/{id}/transfer_ownership/",
+        "auth": true,
+        "permission": "superuser",
+        "description": "Transfer farm ownership to another user. The current superuser's account is deleted. Can only be called on your own user ID.",
+        "requestBody": {
+          "new_superuser_id": { "type": "integer", "required": true }
+        }
+      }
+    },
+
+    "farms": {
+      "list": {
+        "method": "GET",
+        "path": "/api/farms/",
+        "auth": true,
+        "description": "Get the current user's farm. Returns a list with at most one farm."
+      },
+      "retrieve": {
+        "method": "GET",
+        "path": "/api/farms/{id}/",
+        "auth": true,
+        "description": "Get farm details.",
+        "response": {
+          "id": "integer",
+          "name": "string",
+          "code": "string (8-char unique code for invitations)",
+          "owner": "integer (user ID)",
+          "base_currency": "string (3-letter currency code)",
+          "phone": "string",
+          "email": "string",
+          "address": "string",
+          "payment_details": "object ({bank_name, account_name, account_number, sort_code})",
+          "created_at": "datetime"
+        }
+      },
+      "partialUpdate": {
+        "method": "PATCH",
+        "path": "/api/farms/{id}/",
+        "auth": true,
+        "description": "Update farm details (name, base_currency, phone, email, address, payment_details).",
+        "requestBody": {
+          "name": { "type": "string", "required": false },
+          "base_currency": { "type": "string", "required": false },
+          "phone": { "type": "string", "required": false },
+          "email": { "type": "string", "required": false },
+          "address": { "type": "string", "required": false },
+          "payment_details": { "type": "object", "required": false, "description": "JSON object with bank_name, account_name, account_number, sort_code" }
+        }
+      },
+      "createFarm": {
+        "method": "POST",
+        "path": "/api/farms/create_farm/",
+        "auth": true,
+        "description": "Create a new farm. User must not already belong to a farm. The user becomes superuser.",
+        "requestBody": {
+          "name": { "type": "string", "required": true }
+        }
+      },
+      "joinFarm": {
+        "method": "POST",
+        "path": "/api/farms/join_farm/",
+        "auth": true,
+        "description": "Join an existing farm using a farm code. User must not already belong to a farm.",
+        "requestBody": {
+          "code": { "type": "string", "required": true }
+        }
+      },
+      "deleteFarm": {
+        "method": "POST",
+        "path": "/api/farms/delete_farm/",
+        "auth": true,
+        "permission": "superuser",
+        "description": "Delete the farm and ALL associated data (users, flocks, transactions, reports). Irreversible."
+      }
+    },
+
+    "pushTokens": {
+      "register": {
+        "method": "POST",
+        "path": "/api/register-token/",
+        "auth": true,
+        "description": "Register a push notification token (e.g. Expo push token). Keeps the last 5 tokens per user.",
+        "requestBody": {
+          "token": { "type": "string", "required": true }
+        }
+      }
+    },
+
+    "flocks": {
+      "list": {
+        "method": "GET",
+        "path": "/api/flocks/",
+        "auth": true,
+        "permission": "any authenticated user",
+        "description": "List all flocks for the current farm.",
+        "queryParams": {
+          "status": { "type": "string", "enum": ["active", "closed"], "description": "Filter by flock status" },
+          "currency": { "type": "string", "description": "Display currency for monetary fields" }
+        },
+        "response": [
+          {
+            "id": "integer",
+            "name": "string",
+            "breed": "string",
+            "initial_quantity": "integer",
+            "current_quantity": "integer",
+            "date_added": "date",
+            "user": "integer",
+            "farm": "integer",
+            "status": "string (active|closed)",
+            "start_date": "date|null",
+            "end_date": "date|null",
+            "closure_reason": "string|null (sold|culled|disposed|transferred|other)",
+            "closure_notes": "string",
+            "total_eggs_collected": "integer",
+            "total_feed_kg": "decimal",
+            "total_feed_cost": "decimal",
+            "total_health_cost": "decimal",
+            "total_mortality": "integer",
+            "total_income": "decimal",
+            "total_expense": "decimal",
+            "currency": "string",
+            "cycle_duration_days": "integer|null",
+            "net_profit": "decimal"
+          }
+        ]
+      },
+      "retrieve": {
+        "method": "GET",
+        "path": "/api/flocks/{id}/",
+        "auth": true,
+        "permission": "any authenticated user",
+        "description": "Get a specific flock's details.",
+        "queryParams": {
+          "currency": { "type": "string", "description": "Display currency for monetary fields" }
+        }
+      },
+      "create": {
+        "method": "POST",
+        "path": "/api/flocks/",
+        "auth": true,
+        "permission": "manager or superuser or can_manage_flocks",
+        "description": "Create a new flock. Automatically sets status to 'active' and start_date to today if not provided.",
+        "requestBody": {
+          "name": { "type": "string", "required": true },
+          "breed": { "type": "string", "required": true },
+          "initial_quantity": { "type": "integer", "required": true },
+          "current_quantity": { "type": "integer", "required": true },
+          "start_date": { "type": "date", "required": false, "description": "Defaults to today" }
+        }
+      },
+      "update": {
+        "method": "PUT",
+        "path": "/api/flocks/{id}/",
+        "auth": true,
+        "permission": "manager or superuser or can_manage_flocks",
+        "description": "Update a flock. Cannot modify a closed flock."
+      },
+      "partialUpdate": {
+        "method": "PATCH",
+        "path": "/api/flocks/{id}/",
+        "auth": true,
+        "permission": "manager or superuser or can_manage_flocks",
+        "description": "Partially update a flock. Cannot modify a closed flock."
+      },
+      "delete": {
+        "method": "DELETE",
+        "path": "/api/flocks/{id}/",
+        "auth": true,
+        "permission": "manager or superuser or can_manage_flocks",
+        "description": "Delete a flock. Cannot delete a closed flock."
+      },
+      "closeCycle": {
+        "method": "POST",
+        "path": "/api/flocks/{id}/close_cycle/",
+        "auth": true,
+        "permission": "manager or superuser or can_manage_flocks",
+        "description": "Close/end a flock's production cycle. Computes and freezes summary stats (totals for eggs, feed, health, income, expense). Cannot close an already-closed flock.",
+        "requestBody": {
+          "closure_reason": { "type": "string", "required": true, "enum": ["sold", "culled", "disposed", "transferred", "other"] },
+          "closure_notes": { "type": "string", "required": false },
+          "end_date": { "type": "date", "required": false, "description": "Defaults to today" }
+        },
+        "response": "Full Flock object with updated stats"
+      },
+      "reopenCycle": {
+        "method": "POST",
+        "path": "/api/flocks/{id}/reopen_cycle/",
+        "auth": true,
+        "permission": "manager or superuser or can_manage_flocks",
+        "description": "Reopen a closed flock cycle. Clears end_date, closure_reason, and closure_notes. Only works on closed flocks.",
+        "response": "Full Flock object"
+      },
+      "cycleComparison": {
+        "method": "GET",
+        "path": "/api/flocks/cycle_comparison/",
+        "auth": true,
+        "permission": "any authenticated user",
+        "description": "Compare performance metrics across multiple flock cycles.",
+        "queryParams": {
+          "status": { "type": "string", "enum": ["active", "closed"], "description": "Filter by status" },
+          "flock_ids": { "type": "string", "description": "Comma-separated flock IDs to compare (e.g. '1,2,3')" },
+          "currency": { "type": "string", "description": "Display currency for monetary amounts" }
+        },
+        "response": {
+          "count": "integer",
+          "currency": "string",
+          "cycles": [
+            {
+              "id": "integer",
+              "name": "string",
+              "breed": "string",
+              "status": "string",
+              "start_date": "date",
+              "end_date": "date|null",
+              "duration_days": "integer|null",
+              "initial_quantity": "integer",
+              "final_quantity": "integer",
+              "mortality": "integer",
+              "mortality_rate": "decimal (percentage)",
+              "total_eggs": "integer",
+              "eggs_per_bird": "decimal",
+              "total_feed_kg": "decimal",
+              "total_feed_cost": "decimal",
+              "total_health_cost": "decimal",
+              "total_income": "decimal",
+              "total_expense": "decimal",
+              "net_profit": "decimal",
+              "roi": "decimal (percentage)|null",
+              "closure_reason": "string|null"
+            }
+          ]
+        }
+      }
+    },
+
+    "feedLogs": {
+      "list": {
+        "method": "GET",
+        "path": "/api/feed-logs/",
+        "auth": true,
+        "permission": "any authenticated user",
+        "description": "List all feed logs for the current farm.",
+        "queryParams": {
+          "currency": { "type": "string", "description": "Display currency for cost field" }
+        }
+      },
+      "retrieve": {
+        "method": "GET",
+        "path": "/api/feed-logs/{id}/",
+        "auth": true,
+        "permission": "any authenticated user"
+      },
+      "create": {
+        "method": "POST",
+        "path": "/api/feed-logs/",
+        "auth": true,
+        "permission": "any authenticated user",
+        "description": "Create a feed log entry. If currency differs from farm's base currency, the cost is auto-converted and originals are stored.",
+        "requestBody": {
+          "flock": { "type": "integer", "required": true, "description": "Flock ID (must belong to your farm, must be active)" },
+          "date": { "type": "date", "required": true },
+          "quantity_kg": { "type": "decimal", "required": true },
+          "feed_type": { "type": "string", "required": true },
+          "cost": { "type": "decimal", "required": false, "default": 0 },
+          "currency": { "type": "string", "required": false, "description": "Currency of the cost. Defaults to farm's base currency." }
+        },
+        "response": {
+          "id": "integer",
+          "flock": "integer",
+          "date": "date",
+          "quantity_kg": "decimal",
+          "feed_type": "string",
+          "cost": "decimal (in farm base currency)",
+          "currency": "string (farm base currency)",
+          "original_cost": "decimal|null (if converted)",
+          "original_currency": "string|null (if converted)"
+        }
+      },
+      "update": {
+        "method": "PUT",
+        "path": "/api/feed-logs/{id}/",
+        "auth": true,
+        "permission": "any authenticated user"
+      },
+      "partialUpdate": {
+        "method": "PATCH",
+        "path": "/api/feed-logs/{id}/",
+        "auth": true,
+        "permission": "any authenticated user"
+      },
+      "delete": {
+        "method": "DELETE",
+        "path": "/api/feed-logs/{id}/",
+        "auth": true,
+        "permission": "any authenticated user"
+      }
+    },
+
+    "healthLogs": {
+      "list": {
+        "method": "GET",
+        "path": "/api/health-logs/",
+        "auth": true,
+        "permission": "any authenticated user",
+        "queryParams": {
+          "currency": { "type": "string", "description": "Display currency for cost field" }
+        }
+      },
+      "retrieve": {
+        "method": "GET",
+        "path": "/api/health-logs/{id}/",
+        "auth": true,
+        "permission": "any authenticated user"
+      },
+      "create": {
+        "method": "POST",
+        "path": "/api/health-logs/",
+        "auth": true,
+        "permission": "any authenticated user",
+        "description": "Create a health log entry. For mortality type, affected_birds reduces flock count.",
+        "requestBody": {
+          "flock": { "type": "integer", "required": true, "description": "Flock ID (must belong to your farm, must be active)" },
+          "date": { "type": "date", "required": true },
+          "log_type": { "type": "string", "required": true, "enum": ["vaccination", "medication", "mortality", "other"] },
+          "description": { "type": "string", "required": true },
+          "cost": { "type": "decimal", "required": false, "default": 0 },
+          "currency": { "type": "string", "required": false },
+          "affected_birds": { "type": "integer", "required": false, "default": 0 }
+        },
+        "response": {
+          "id": "integer",
+          "flock": "integer",
+          "date": "date",
+          "log_type": "string",
+          "description": "string",
+          "cost": "decimal",
+          "currency": "string",
+          "original_cost": "decimal|null",
+          "original_currency": "string|null",
+          "affected_birds": "integer"
+        }
+      },
+      "update": {
+        "method": "PUT",
+        "path": "/api/health-logs/{id}/",
+        "auth": true,
+        "permission": "any authenticated user"
+      },
+      "partialUpdate": {
+        "method": "PATCH",
+        "path": "/api/health-logs/{id}/",
+        "auth": true,
+        "permission": "any authenticated user"
+      },
+      "delete": {
+        "method": "DELETE",
+        "path": "/api/health-logs/{id}/",
+        "auth": true,
+        "permission": "any authenticated user"
+      }
+    },
+
+    "eggCollections": {
+      "list": {
+        "method": "GET",
+        "path": "/api/egg-collections/",
+        "auth": true,
+        "permission": "any authenticated user"
+      },
+      "retrieve": {
+        "method": "GET",
+        "path": "/api/egg-collections/{id}/",
+        "auth": true,
+        "permission": "any authenticated user"
+      },
+      "create": {
+        "method": "POST",
+        "path": "/api/egg-collections/",
+        "auth": true,
+        "permission": "any authenticated user",
+        "description": "Record egg collection for a flock.",
+        "requestBody": {
+          "flock": { "type": "integer", "required": true, "description": "Flock ID (must belong to your farm, must be active)" },
+          "date": { "type": "date", "required": true },
+          "quantity_collected": { "type": "integer", "required": true },
+          "damaged": { "type": "integer", "required": false, "default": 0 }
+        },
+        "response": {
+          "id": "integer",
+          "flock": "integer",
+          "date": "date",
+          "quantity_collected": "integer",
+          "damaged": "integer"
+        }
+      },
+      "update": {
+        "method": "PUT",
+        "path": "/api/egg-collections/{id}/",
+        "auth": true,
+        "permission": "any authenticated user"
+      },
+      "partialUpdate": {
+        "method": "PATCH",
+        "path": "/api/egg-collections/{id}/",
+        "auth": true,
+        "permission": "any authenticated user"
+      },
+      "delete": {
+        "method": "DELETE",
+        "path": "/api/egg-collections/{id}/",
+        "auth": true,
+        "permission": "any authenticated user"
+      }
+    },
+
+    "transactions": {
+      "list": {
+        "method": "GET",
+        "path": "/api/transactions/",
+        "auth": true,
+        "permission": "can_manage_finances",
+        "description": "List all financial transactions for the current farm.",
+        "queryParams": {
+          "related_flock": { "type": "integer", "description": "Filter transactions by flock ID" },
+          "currency": { "type": "string", "description": "Display currency for amount field" }
+        }
+      },
+      "retrieve": {
+        "method": "GET",
+        "path": "/api/transactions/{id}/",
+        "auth": true,
+        "permission": "can_manage_finances",
+        "queryParams": {
+          "currency": { "type": "string", "description": "Display currency for amount field" }
+        }
+      },
+      "create": {
+        "method": "POST",
+        "path": "/api/transactions/",
+        "auth": true,
+        "permission": "can_manage_finances",
+        "description": "Create a financial transaction. If currency differs from farm's base currency, the amount is auto-converted and originals are stored.",
+        "requestBody": {
+          "date": { "type": "date", "required": true },
+          "type": { "type": "string", "required": true, "enum": ["income", "expense"] },
+          "category": { "type": "string", "required": true, "enum": ["feed", "medication", "equipment", "labor", "utilities", "bird_purchase", "egg_sales", "bird_sales", "manure_sales", "other"] },
+          "amount": { "type": "decimal", "required": true },
+          "currency": { "type": "string", "required": false, "description": "Defaults to farm's base currency" },
+          "description": { "type": "string", "required": false },
+          "related_flock": { "type": "integer", "required": false, "description": "Link transaction to a specific flock (must belong to your farm, must be active)" }
+        },
+        "response": {
+          "id": "integer",
+          "user": "integer",
+          "farm": "integer",
+          "date": "date",
+          "type": "string",
+          "category": "string",
+          "amount": "decimal (in farm base currency)",
+          "currency": "string (farm base currency)",
+          "original_amount": "decimal|null (if converted)",
+          "original_currency": "string|null (if converted)",
+          "description": "string",
+          "related_flock": "integer|null",
+          "invoice": "integer|null (set when auto-created from a paid invoice)"
+        },
+        "categoryMapping": {
+          "expense": ["feed", "medication", "equipment", "labor", "utilities", "bird_purchase", "other"],
+          "income": ["egg_sales", "bird_sales", "manure_sales", "other"]
+        }
+      },
+      "update": {
+        "method": "PUT",
+        "path": "/api/transactions/{id}/",
+        "auth": true,
+        "permission": "can_manage_finances"
+      },
+      "partialUpdate": {
+        "method": "PATCH",
+        "path": "/api/transactions/{id}/",
+        "auth": true,
+        "permission": "can_manage_finances"
+      },
+      "delete": {
+        "method": "DELETE",
+        "path": "/api/transactions/{id}/",
+        "auth": true,
+        "permission": "manager or superuser",
+        "description": "Delete a transaction. Requires manager-level access."
+      },
+      "analytics": {
+        "method": "GET",
+        "path": "/api/transactions/analytics/",
+        "auth": true,
+        "permission": "can_manage_finances",
+        "description": "Get financial analytics/summary for the farm. Supports filtering by time period and flock.",
+        "queryParams": {
+          "period": { "type": "integer", "description": "Number of days to analyze (default: 30). Use 0 for all time." },
+          "currency": { "type": "string", "description": "Display currency (default: farm's base currency)" },
+          "related_flock": { "type": "integer", "description": "Filter analytics to a specific flock ID" }
+        },
+        "response": {
+          "period_days": "integer",
+          "start_date": "date",
+          "end_date": "date",
+          "currency": "string",
+          "total_income": "decimal",
+          "total_expenses": "decimal",
+          "net_profit": "decimal",
+          "expense_by_category": "object (category -> amount)",
+          "income_by_category": "object (category -> amount)",
+          "top_expenses": [{ "category": "string", "amount": "decimal" }],
+          "top_income": [{ "category": "string", "amount": "decimal" }]
+        }
+      }
+    },
+
+    "invoices": {
+      "list": {
+        "method": "GET",
+        "path": "/api/invoices/",
+        "auth": true,
+        "permission": "can_manage_finances",
+        "description": "List all invoices for the current farm.",
+        "queryParams": {
+          "related_flock": { "type": "integer", "description": "Filter by flock ID" },
+          "status": { "type": "string", "enum": ["draft", "sent", "paid", "cancelled"], "description": "Filter by invoice status" },
+          "date_from": { "type": "date", "description": "Filter invoices from this date (inclusive)" },
+          "date_to": { "type": "date", "description": "Filter invoices up to this date (inclusive)" }
+        }
+      },
+      "retrieve": {
+        "method": "GET",
+        "path": "/api/invoices/{id}/",
+        "auth": true,
+        "permission": "can_manage_finances",
+        "description": "Get a specific invoice with its line items."
+      },
+      "create": {
+        "method": "POST",
+        "path": "/api/invoices/",
+        "auth": true,
+        "permission": "can_manage_finances",
+        "description": "Create a new invoice with line items. Auto-generates invoice_number (INV-YYMMDD-###), snapshots farm details and payment info from the farm record. Computes subtotal and grand_total from line items.",
+        "requestBody": {
+          "invoice_date": { "type": "date", "required": true },
+          "due_date": { "type": "date", "required": true },
+          "customer_name": { "type": "string", "required": true },
+          "customer_phone": { "type": "string", "required": false },
+          "customer_email": { "type": "string", "required": false },
+          "customer_address": { "type": "string", "required": false },
+          "related_flock": { "type": "integer", "required": false, "description": "Flock ID (must belong to your farm)" },
+          "category": { "type": "string", "required": false, "enum": ["egg_sales", "bird_sales", "manure_sales", "other"], "default": "other", "description": "Income category used when auto-creating a transaction on mark_paid" },
+          "status": { "type": "string", "required": false, "enum": ["draft", "sent", "paid", "cancelled"], "default": "draft" },
+          "notes": { "type": "string", "required": false },
+          "terms": { "type": "string", "required": false },
+          "line_items": {
+            "type": "array",
+            "required": true,
+            "description": "At least one line item required",
+            "items": {
+              "description": { "type": "string", "required": true },
+              "quantity": { "type": "decimal", "required": true },
+              "unit_price": { "type": "decimal", "required": true },
+              "sort_order": { "type": "integer", "required": false }
+            }
+          }
+        },
+        "response": {
+          "id": "integer",
+          "invoice_number": "string (auto-generated, e.g. 'INV-260615-001')",
+          "farm": "integer",
+          "related_flock": "integer|null",
+          "category": "string (egg_sales|bird_sales|manure_sales|other)",
+          "status": "string (draft|sent|paid|cancelled)",
+          "invoice_date": "date",
+          "due_date": "date",
+          "customer_name": "string",
+          "customer_phone": "string",
+          "customer_email": "string",
+          "customer_address": "string",
+          "farm_name": "string (snapshot)",
+          "farm_phone": "string (snapshot)",
+          "farm_email": "string (snapshot)",
+          "farm_address": "string (snapshot)",
+          "payment_details": "object (snapshot of farm payment details)",
+          "notes": "string",
+          "terms": "string",
+          "subtotal": "decimal (sum of line item totals)",
+          "grand_total": "decimal (equals subtotal for now)",
+          "created_by": "integer (user ID)",
+          "created_at": "datetime",
+          "updated_at": "datetime",
+          "line_items": [
+            {
+              "id": "integer",
+              "description": "string",
+              "quantity": "decimal",
+              "unit_price": "decimal",
+              "total": "decimal (quantity * unit_price, auto-computed)",
+              "sort_order": "integer"
+            }
+          ]
+        }
+      },
+      "partialUpdate": {
+        "method": "PATCH",
+        "path": "/api/invoices/{id}/",
+        "auth": true,
+        "permission": "can_manage_finances",
+        "description": "Update a draft or sent invoice. Cannot modify paid or cancelled invoices. If line_items is provided, existing items are replaced entirely.",
+        "notes": "Send the full line_items array on update — existing items are deleted and replaced."
+      },
+      "delete": {
+        "method": "DELETE",
+        "path": "/api/invoices/{id}/",
+        "auth": true,
+        "permission": "can_manage_finances",
+        "description": "Delete an invoice. Cannot delete paid or cancelled invoices."
+      },
+      "markSent": {
+        "method": "POST",
+        "path": "/api/invoices/{id}/mark_sent/",
+        "auth": true,
+        "permission": "can_manage_finances",
+        "description": "Mark a draft invoice as sent (awaiting payment). Only works on draft invoices.",
+        "response": "Full Invoice object with updated status"
+      },
+      "markPaid": {
+        "method": "POST",
+        "path": "/api/invoices/{id}/mark_paid/",
+        "auth": true,
+        "permission": "can_manage_finances",
+        "description": "Mark a sent invoice as paid. Only works on sent invoices. Auto-creates an income transaction for the grand_total using the invoice's category, linked to the invoice and its related_flock (if set). Recalculates flock stats.",
+        "response": "Full Invoice object with updated status"
+      },
+      "cancel": {
+        "method": "POST",
+        "path": "/api/invoices/{id}/cancel/",
+        "auth": true,
+        "permission": "can_manage_finances",
+        "description": "Cancel an invoice. Works on draft or sent invoices. Cannot cancel paid or already cancelled invoices.",
+        "response": "Full Invoice object with updated status"
+      }
+    },
+
+    "financeCategories": {
+      "list": {
+        "method": "GET",
+        "path": "/api/finance-categories/",
+        "auth": true,
+        "description": "Get available transaction categories grouped by type.",
+        "response": {
+          "expense": [{ "key": "string", "label": "string" }],
+          "income": [{ "key": "string", "label": "string" }]
+        }
+      }
+    },
+
+    "reports": {
+      "config": {
+        "list": {
+          "method": "GET",
+          "path": "/api/reports/config/",
+          "auth": true,
+          "description": "Get the farm's report configuration (including questions).",
+          "response": [
+            {
+              "id": "integer",
+              "is_enabled": "boolean",
+              "deadline_time": "time|null (HH:MM:SS)",
+              "questions": [
+                {
+                  "id": "integer",
+                  "text": "string",
+                  "question_type": "string (text|number|date|boolean)",
+                  "is_required": "boolean",
+                  "input_type": "string (default|custom)",
+                  "sort_order": "integer"
+                }
+              ]
+            }
+          ]
+        },
+        "retrieve": {
+          "method": "GET",
+          "path": "/api/reports/config/{id}/",
+          "auth": true
+        },
+        "createOrUpdate": {
+          "method": "POST",
+          "path": "/api/reports/config/",
+          "auth": true,
+          "permission": "manager or superuser or can_manage_flocks",
+          "description": "Create or update the farm's report config. If a config already exists, it is updated (upsert).",
+          "requestBody": {
+            "is_enabled": { "type": "boolean", "required": false },
+            "deadline_time": { "type": "time", "required": false, "description": "Daily deadline for report submission (HH:MM:SS)" }
+          }
+        },
+        "update": {
+          "method": "PUT",
+          "path": "/api/reports/config/{id}/",
+          "auth": true,
+          "permission": "manager or superuser or can_manage_flocks"
+        },
+        "partialUpdate": {
+          "method": "PATCH",
+          "path": "/api/reports/config/{id}/",
+          "auth": true,
+          "permission": "manager or superuser or can_manage_flocks"
+        },
+        "delete": {
+          "method": "DELETE",
+          "path": "/api/reports/config/{id}/",
+          "auth": true,
+          "permission": "manager or superuser or can_manage_flocks"
+        }
+      },
+
+      "questions": {
+        "list": {
+          "method": "GET",
+          "path": "/api/reports/questions/",
+          "auth": true,
+          "description": "List all report questions for the farm."
+        },
+        "retrieve": {
+          "method": "GET",
+          "path": "/api/reports/questions/{id}/",
+          "auth": true
+        },
+        "create": {
+          "method": "POST",
+          "path": "/api/reports/questions/",
+          "auth": true,
+          "permission": "manager or superuser or can_manage_flocks",
+          "description": "Add a question to the farm's report config. Creates the config if it doesn't exist.",
+          "requestBody": {
+            "text": { "type": "string", "required": true },
+            "question_type": { "type": "string", "required": false, "enum": ["text", "number", "date", "boolean"], "default": "text" },
+            "is_required": { "type": "boolean", "required": false, "default": true },
+            "input_type": { "type": "string", "required": false, "enum": ["default", "custom"], "default": "custom" },
+            "sort_order": { "type": "integer", "required": false, "default": 0 }
+          }
+        },
+        "update": {
+          "method": "PUT",
+          "path": "/api/reports/questions/{id}/",
+          "auth": true,
+          "permission": "manager or superuser or can_manage_flocks"
+        },
+        "partialUpdate": {
+          "method": "PATCH",
+          "path": "/api/reports/questions/{id}/",
+          "auth": true,
+          "permission": "manager or superuser or can_manage_flocks"
+        },
+        "delete": {
+          "method": "DELETE",
+          "path": "/api/reports/questions/{id}/",
+          "auth": true,
+          "permission": "manager or superuser or can_manage_flocks"
+        }
+      },
+
+      "submissions": {
+        "list": {
+          "method": "GET",
+          "path": "/api/reports/submissions/",
+          "auth": true,
+          "description": "List all daily report submissions for the farm. Ordered by reference_date descending.",
+          "response": [
+            {
+              "id": "integer",
+              "reference_date": "date",
+              "submitted_at": "datetime",
+              "user": "integer",
+              "user_name": "string",
+              "answers": [
+                {
+                  "id": "integer",
+                  "question": "integer",
+                  "question_text": "string",
+                  "answer_text": "string|null",
+                  "answer_number": "decimal|null",
+                  "answer_date": "date|null",
+                  "answer_boolean": "boolean|null"
+                }
+              ]
+            }
+          ]
+        },
+        "retrieve": {
+          "method": "GET",
+          "path": "/api/reports/submissions/{id}/",
+          "auth": true
+        },
+        "create": {
+          "method": "POST",
+          "path": "/api/reports/submissions/",
+          "auth": true,
+          "description": "Submit a daily report. Only one report per farm per reference_date. Sends push notification to managers/superusers.",
+          "requestBody": {
+            "reference_date": { "type": "date", "required": true },
+            "answers": {
+              "type": "array",
+              "required": true,
+              "description": "Array of answer objects",
+              "items": {
+                "question_id": { "type": "integer", "required": true },
+                "answer_text": { "type": "string", "required": false },
+                "answer_number": { "type": "decimal", "required": false },
+                "answer_date": { "type": "date", "required": false }
+              }
+            }
+          },
+          "notes": "Only one submission per reference_date per farm (unique constraint)."
+        }
+      }
+    },
+
+    "currencies": {
+      "supported": {
+        "method": "GET",
+        "path": "/api/currencies/",
+        "auth": true,
+        "description": "Get list of all supported currencies.",
+        "response": {
+          "currencies": [
+            {
+              "code": "string (e.g. 'NGN')",
+              "name": "string (e.g. 'Nigerian Naira')",
+              "symbol": "string (e.g. '₦')"
+            }
+          ]
+        }
+      },
+      "exchangeRates": {
+        "method": "GET",
+        "path": "/api/exchange-rates/",
+        "auth": true,
+        "description": "Get the latest exchange rates for all currency pairs.",
+        "response": {
+          "rates": [
+            {
+              "id": "integer",
+              "base_currency": "string",
+              "target_currency": "string",
+              "rate": "decimal",
+              "fetched_at": "datetime"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

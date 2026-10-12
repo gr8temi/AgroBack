@@ -8,6 +8,8 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from core.permissions import IsManager, IsStaff
+from currencies.utils import convert_amount
+from currencies.views import CurrencyViewMixin
 
 from .models import Flock, FeedLog, HealthLog, EggCollection
 from .serializers import (
@@ -19,7 +21,7 @@ from .serializers import (
 )
 
 
-class FlockViewSet(viewsets.ModelViewSet):
+class FlockViewSet(CurrencyViewMixin, viewsets.ModelViewSet):
     serializer_class = FlockSerializer
 
     def get_permissions(self):
@@ -99,6 +101,7 @@ class FlockViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], permission_classes=[IsStaff])
     def cycle_comparison(self, request):
         qs = Flock.objects.filter(farm=request.user.farm)
+        display_currency = request.query_params.get('currency', request.user.farm.base_currency)
 
         status_filter = request.query_params.get('status')
         if status_filter in ('active', 'closed'):
@@ -115,6 +118,12 @@ class FlockViewSet(viewsets.ModelViewSet):
             if flock.start_date:
                 end = flock.end_date or date.today()
                 duration = (end - flock.start_date).days
+
+            feed_cost = float(convert_amount(flock.total_feed_cost, flock.currency, display_currency))
+            health_cost = float(convert_amount(flock.total_health_cost, flock.currency, display_currency))
+            income = float(convert_amount(flock.total_income, flock.currency, display_currency))
+            expense = float(convert_amount(flock.total_expense, flock.currency, display_currency))
+            net_profit = income - expense
 
             cycles.append({
                 'id': flock.id,
@@ -135,35 +144,98 @@ class FlockViewSet(viewsets.ModelViewSet):
                     flock.total_eggs_collected / flock.initial_quantity, 1
                 ) if flock.initial_quantity > 0 else 0,
                 'total_feed_kg': float(flock.total_feed_kg),
-                'total_feed_cost': float(flock.total_feed_cost),
-                'total_health_cost': float(flock.total_health_cost),
-                'total_income': float(flock.total_income),
-                'total_expense': float(flock.total_expense),
-                'net_profit': float(flock.total_income - flock.total_expense),
-                'roi': round(
-                    float(flock.total_income - flock.total_expense)
-                    / float(flock.total_expense) * 100, 2
-                ) if flock.total_expense > 0 else None,
+                'total_feed_cost': feed_cost,
+                'total_health_cost': health_cost,
+                'total_income': income,
+                'total_expense': expense,
+                'net_profit': net_profit,
+                'roi': round(net_profit / expense * 100, 2) if expense > 0 else None,
                 'closure_reason': flock.closure_reason,
             })
 
-        return Response({'count': len(cycles), 'cycles': cycles})
+        return Response({'count': len(cycles), 'currency': display_currency, 'cycles': cycles})
 
 
-class FeedLogViewSet(viewsets.ModelViewSet):
+def _recalc_flock(flock):
+    if flock:
+        flock.compute_summary_stats()
+        flock.save()
+
+
+class FeedLogViewSet(CurrencyViewMixin, viewsets.ModelViewSet):
     serializer_class = FeedLogSerializer
     permission_classes = [IsStaff]
 
     def get_queryset(self):
         return FeedLog.objects.filter(flock__farm=self.request.user.farm)
 
+    @transaction.atomic
+    def perform_create(self, serializer):
+        farm = self.request.user.farm
+        input_currency = serializer.validated_data.get('currency') or farm.base_currency
+        cost = serializer.validated_data.get('cost', 0)
+        save_kwargs = {}
+        if input_currency != farm.base_currency:
+            save_kwargs.update(
+                original_cost=cost,
+                original_currency=input_currency,
+                cost=convert_amount(cost, input_currency, farm.base_currency),
+            )
+        save_kwargs['currency'] = farm.base_currency
+        instance = serializer.save(**save_kwargs)
+        _recalc_flock(instance.flock)
 
-class HealthLogViewSet(viewsets.ModelViewSet):
+    @transaction.atomic
+    def perform_update(self, serializer):
+        old_flock_id = serializer.instance.flock_id
+        instance = serializer.save()
+        _recalc_flock(instance.flock)
+        if old_flock_id != instance.flock_id:
+            _recalc_flock(Flock.objects.get(id=old_flock_id))
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        flock = instance.flock
+        instance.delete()
+        _recalc_flock(flock)
+
+
+class HealthLogViewSet(CurrencyViewMixin, viewsets.ModelViewSet):
     serializer_class = HealthLogSerializer
     permission_classes = [IsStaff]
 
     def get_queryset(self):
         return HealthLog.objects.filter(flock__farm=self.request.user.farm)
+
+    @transaction.atomic
+    def perform_create(self, serializer):
+        farm = self.request.user.farm
+        input_currency = serializer.validated_data.get('currency') or farm.base_currency
+        cost = serializer.validated_data.get('cost', 0)
+        save_kwargs = {}
+        if input_currency != farm.base_currency:
+            save_kwargs.update(
+                original_cost=cost,
+                original_currency=input_currency,
+                cost=convert_amount(cost, input_currency, farm.base_currency),
+            )
+        save_kwargs['currency'] = farm.base_currency
+        instance = serializer.save(**save_kwargs)
+        _recalc_flock(instance.flock)
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        old_flock_id = serializer.instance.flock_id
+        instance = serializer.save()
+        _recalc_flock(instance.flock)
+        if old_flock_id != instance.flock_id:
+            _recalc_flock(Flock.objects.get(id=old_flock_id))
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        flock = instance.flock
+        instance.delete()
+        _recalc_flock(flock)
 
 
 class EggCollectionViewSet(viewsets.ModelViewSet):
@@ -172,3 +244,22 @@ class EggCollectionViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return EggCollection.objects.filter(flock__farm=self.request.user.farm)
+
+    @transaction.atomic
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        _recalc_flock(instance.flock)
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        old_flock_id = serializer.instance.flock_id
+        instance = serializer.save()
+        _recalc_flock(instance.flock)
+        if old_flock_id != instance.flock_id:
+            _recalc_flock(Flock.objects.get(id=old_flock_id))
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        flock = instance.flock
+        instance.delete()
+        _recalc_flock(flock)

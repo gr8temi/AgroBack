@@ -1,7 +1,14 @@
 from rest_framework import serializers
+
+from currencies.serializers import CurrencyConversionMixin
+
 from .models import Transaction
 
-class TransactionSerializer(serializers.ModelSerializer):
+
+class TransactionSerializer(CurrencyConversionMixin, serializers.ModelSerializer):
+    currency_fields = ['amount']
+    currency_source_field = 'currency'
+
     class Meta:
         model = Transaction
         fields = '__all__'
