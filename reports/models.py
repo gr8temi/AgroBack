@@ -60,6 +60,7 @@ class DailyReport(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='submitted_reports')
     reference_date = models.DateField()
     submitted_at = models.DateTimeField(auto_now_add=True)
+    client_id = models.UUIDField(unique=True, null=True, blank=True)
     
     class Meta:
         unique_together = ('farm', 'reference_date')

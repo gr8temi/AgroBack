@@ -99,6 +99,7 @@ class FeedLog(models.Model):
     currency = models.CharField(max_length=3, choices=SUPPORTED_CURRENCIES, default=DEFAULT_CURRENCY)
     original_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     original_currency = models.CharField(max_length=3, null=True, blank=True)
+    client_id = models.UUIDField(unique=True, null=True, blank=True)
 
     def __str__(self):
         return f"{self.flock.name} - {self.date} - {self.feed_type}"
@@ -119,6 +120,7 @@ class HealthLog(models.Model):
     original_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     original_currency = models.CharField(max_length=3, null=True, blank=True)
     affected_birds = models.PositiveIntegerField(default=0)
+    client_id = models.UUIDField(unique=True, null=True, blank=True)
 
     def __str__(self):
         return f"{self.flock.name} - {self.log_type} - {self.date}"
@@ -128,6 +130,7 @@ class EggCollection(models.Model):
     date = models.DateField()
     quantity_collected = models.PositiveIntegerField()
     damaged = models.PositiveIntegerField(default=0)
+    client_id = models.UUIDField(unique=True, null=True, blank=True)
 
     def __str__(self):
         return f"{self.flock.name} - {self.date} - {self.quantity_collected}"
