@@ -22,7 +22,8 @@ class CurrencyViewMixin:
 
 
 @api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
+# Public: the signup screen needs the list before the user has an account.
+@permission_classes([permissions.AllowAny])
 def supported_currencies(request):
     return Response({
         'currencies': [

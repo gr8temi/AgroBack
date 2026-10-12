@@ -130,3 +130,11 @@ class IdempotentCreateTests(TestCase):
                                      {'client_id': str(uuid.uuid4())}, format='json')
 
         self.assertEqual(response.status_code, 400)
+
+
+class SupportedCurrenciesTests(TestCase):
+    def test_available_without_login(self):
+        response = APIClient().get('/api/currencies/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(any(c['code'] == 'NGN' for c in response.data['currencies']))
