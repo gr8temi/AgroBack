@@ -78,6 +78,18 @@ class IdempotentCreateTests(TestCase):
         self.assertEqual(DailyReport.objects.count(), 1)
         self.assertEqual(mock_push.call_count, 1)
 
+    @patch('reports.views.send_push_notification')
+    def test_duplicate_report_date_returns_400(self, mock_push):
+        url = '/api/reports/submissions/'
+        first = self.client.post(url, {'client_id': str(uuid.uuid4()), 'reference_date': '2026-10-01',
+                                       'answers': []}, format='json')
+        second = self.client.post(url, {'client_id': str(uuid.uuid4()), 'reference_date': '2026-10-01',
+                                        'answers': []}, format='json')
+
+        self.assertEqual((first.status_code, second.status_code), (201, 400))
+        self.assertIn('reference_date', second.data)
+        self.assertEqual(DailyReport.objects.count(), 1)
+
     def test_without_client_id_behaves_as_before(self):
         payload = {'flock': self.flock.id, 'date': '2026-10-01', 'quantity_collected': 10}
         first, second = self.post_twice('/api/egg-collections/', payload)

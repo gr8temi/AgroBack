@@ -35,6 +35,15 @@ class DailyReportSubmissionSerializer(serializers.ModelSerializer):
         model = DailyReport
         fields = ['client_id', 'reference_date', 'answers']
 
+    def validate_reference_date(self, value):
+        # farm isn't a serializer field, so DRF can't enforce unique_together itself;
+        # without this a duplicate hits the DB constraint and returns a 500.
+        request = self.context.get('request')
+        farm = getattr(request.user, 'farm', None) if request else None
+        if farm and DailyReport.objects.filter(farm=farm, reference_date=value).exists():
+            raise serializers.ValidationError('A report for this date has already been submitted.')
+        return value
+
     def create(self, validated_data):
         answers_data = validated_data.pop('answers')
         # user and farm are injected into validated_data by perform_create
