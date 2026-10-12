@@ -8,6 +8,7 @@ from .serializers import (
     DailyReportSerializer,
     DailyReportSubmissionSerializer,
 )
+from core.idempotency import IdempotentCreateMixin
 from core.utils import send_push_notification
 
 
@@ -81,7 +82,7 @@ class QuestionViewSet(viewsets.ModelViewSet):
         serializer.save(config=config)
 
 
-class DailyReportViewSet(viewsets.ModelViewSet):
+class DailyReportViewSet(IdempotentCreateMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
@@ -95,6 +96,9 @@ class DailyReportViewSet(viewsets.ModelViewSet):
         if self.action == "create":
             return DailyReportSubmissionSerializer
         return DailyReportSerializer
+
+    def get_read_serializer(self, instance):
+        return DailyReportSerializer(instance, context=self.get_serializer_context())
 
     def perform_create(self, serializer):
         report = serializer.save(user=self.request.user, farm=self.request.user.farm)

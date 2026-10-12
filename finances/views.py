@@ -9,6 +9,7 @@ from rest_framework import viewsets, permissions
 from rest_framework.decorators import action, api_view, permission_classes as perm_classes
 from rest_framework.response import Response
 
+from core.idempotency import IdempotentCreateMixin
 from core.permissions import IsManager, CanManageFinances
 from currencies.utils import convert_amount
 from currencies.views import CurrencyViewMixin
@@ -17,7 +18,7 @@ from .models import Transaction
 from .serializers import TransactionSerializer
 
 
-class TransactionViewSet(CurrencyViewMixin, viewsets.ModelViewSet):
+class TransactionViewSet(IdempotentCreateMixin, CurrencyViewMixin, viewsets.ModelViewSet):
     serializer_class = TransactionSerializer
 
     def get_permissions(self):

@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
+from core.idempotency import ClientIdSerializerMixin
 from currencies.serializers import CurrencyConversionMixin
 
 from .models import Flock, FeedLog, HealthLog, EggCollection
@@ -60,7 +61,7 @@ class FlockOwnedMixin:
         return value
 
 
-class FeedLogSerializer(CurrencyConversionMixin, FlockOwnedMixin, serializers.ModelSerializer):
+class FeedLogSerializer(CurrencyConversionMixin, ClientIdSerializerMixin, FlockOwnedMixin, serializers.ModelSerializer):
     currency_fields = ['cost']
     currency_source_field = 'currency'
 
@@ -69,7 +70,7 @@ class FeedLogSerializer(CurrencyConversionMixin, FlockOwnedMixin, serializers.Mo
         fields = '__all__'
 
 
-class HealthLogSerializer(CurrencyConversionMixin, FlockOwnedMixin, serializers.ModelSerializer):
+class HealthLogSerializer(CurrencyConversionMixin, ClientIdSerializerMixin, FlockOwnedMixin, serializers.ModelSerializer):
     currency_fields = ['cost']
     currency_source_field = 'currency'
 
@@ -78,7 +79,7 @@ class HealthLogSerializer(CurrencyConversionMixin, FlockOwnedMixin, serializers.
         fields = '__all__'
 
 
-class EggCollectionSerializer(FlockOwnedMixin, serializers.ModelSerializer):
+class EggCollectionSerializer(ClientIdSerializerMixin, FlockOwnedMixin, serializers.ModelSerializer):
     class Meta:
         model = EggCollection
         fields = '__all__'

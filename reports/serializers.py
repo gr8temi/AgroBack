@@ -26,14 +26,14 @@ class DailyReportSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DailyReport
-        fields = ['id', 'reference_date', 'submitted_at', 'user', 'user_name', 'answers']
+        fields = ['id', 'client_id', 'reference_date', 'submitted_at', 'user', 'user_name', 'answers']
 
 class DailyReportSubmissionSerializer(serializers.ModelSerializer):
     answers = serializers.ListField(write_only=True)
 
     class Meta:
         model = DailyReport
-        fields = ['reference_date', 'answers']
+        fields = ['client_id', 'reference_date', 'answers']
 
     def create(self, validated_data):
         answers_data = validated_data.pop('answers')

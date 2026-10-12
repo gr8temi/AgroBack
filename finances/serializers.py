@@ -1,11 +1,12 @@
 from rest_framework import serializers
 
+from core.idempotency import ClientIdSerializerMixin
 from currencies.serializers import CurrencyConversionMixin
 
 from .models import Transaction
 
 
-class TransactionSerializer(CurrencyConversionMixin, serializers.ModelSerializer):
+class TransactionSerializer(CurrencyConversionMixin, ClientIdSerializerMixin, serializers.ModelSerializer):
     currency_fields = ['amount']
     currency_source_field = 'currency'
 

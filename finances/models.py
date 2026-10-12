@@ -37,6 +37,7 @@ class Transaction(models.Model):
     # Optional link to specific flock if applicable
     related_flock = models.ForeignKey('flocks.Flock', on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
     invoice = models.ForeignKey('invoices.Invoice', on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
+    client_id = models.UUIDField(unique=True, null=True, blank=True)
 
     def __str__(self):
         return f"{self.type} - {self.category} - {self.amount}"

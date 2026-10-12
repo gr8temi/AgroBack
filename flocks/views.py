@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
+from core.idempotency import IdempotentCreateMixin
 from core.permissions import IsManager, IsStaff
 from currencies.utils import convert_amount
 from currencies.views import CurrencyViewMixin
@@ -162,7 +163,7 @@ def _recalc_flock(flock):
         flock.save()
 
 
-class FeedLogViewSet(CurrencyViewMixin, viewsets.ModelViewSet):
+class FeedLogViewSet(IdempotentCreateMixin, CurrencyViewMixin, viewsets.ModelViewSet):
     serializer_class = FeedLogSerializer
     permission_classes = [IsStaff]
 
@@ -200,7 +201,7 @@ class FeedLogViewSet(CurrencyViewMixin, viewsets.ModelViewSet):
         _recalc_flock(flock)
 
 
-class HealthLogViewSet(CurrencyViewMixin, viewsets.ModelViewSet):
+class HealthLogViewSet(IdempotentCreateMixin, CurrencyViewMixin, viewsets.ModelViewSet):
     serializer_class = HealthLogSerializer
     permission_classes = [IsStaff]
 
@@ -238,7 +239,7 @@ class HealthLogViewSet(CurrencyViewMixin, viewsets.ModelViewSet):
         _recalc_flock(flock)
 
 
-class EggCollectionViewSet(viewsets.ModelViewSet):
+class EggCollectionViewSet(IdempotentCreateMixin, viewsets.ModelViewSet):
     serializer_class = EggCollectionSerializer
     permission_classes = [IsStaff]
 

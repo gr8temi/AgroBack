@@ -502,6 +502,7 @@
         "permission": "any authenticated user",
         "description": "Create a feed log entry. If currency differs from farm's base currency, the cost is auto-converted and originals are stored.",
         "requestBody": {
+          "client_id": { "type": "uuid", "required": false, "description": "Client-generated UUID for idempotent retries. If a record with this client_id already exists in your farm, it is returned with 200 (header Idempotent-Replayed: true) instead of creating a duplicate. Cannot be changed after creation." },
           "flock": { "type": "integer", "required": true, "description": "Flock ID (must belong to your farm, must be active)" },
           "date": { "type": "date", "required": true },
           "quantity_kg": { "type": "decimal", "required": true },
@@ -564,6 +565,7 @@
         "permission": "any authenticated user",
         "description": "Create a health log entry. For mortality type, affected_birds reduces flock count.",
         "requestBody": {
+          "client_id": { "type": "uuid", "required": false, "description": "Client-generated UUID for idempotent retries. If a record with this client_id already exists in your farm, it is returned with 200 (header Idempotent-Replayed: true) instead of creating a duplicate. Cannot be changed after creation." },
           "flock": { "type": "integer", "required": true, "description": "Flock ID (must belong to your farm, must be active)" },
           "date": { "type": "date", "required": true },
           "log_type": { "type": "string", "required": true, "enum": ["vaccination", "medication", "mortality", "other"] },
@@ -625,6 +627,7 @@
         "permission": "any authenticated user",
         "description": "Record egg collection for a flock.",
         "requestBody": {
+          "client_id": { "type": "uuid", "required": false, "description": "Client-generated UUID for idempotent retries. If a record with this client_id already exists in your farm, it is returned with 200 (header Idempotent-Replayed: true) instead of creating a duplicate. Cannot be changed after creation." },
           "flock": { "type": "integer", "required": true, "description": "Flock ID (must belong to your farm, must be active)" },
           "date": { "type": "date", "required": true },
           "quantity_collected": { "type": "integer", "required": true },
@@ -686,6 +689,7 @@
         "permission": "can_manage_finances",
         "description": "Create a financial transaction. If currency differs from farm's base currency, the amount is auto-converted and originals are stored.",
         "requestBody": {
+          "client_id": { "type": "uuid", "required": false, "description": "Client-generated UUID for idempotent retries. If a record with this client_id already exists in your farm, it is returned with 200 (header Idempotent-Replayed: true) instead of creating a duplicate. Cannot be changed after creation." },
           "date": { "type": "date", "required": true },
           "type": { "type": "string", "required": true, "enum": ["income", "expense"] },
           "category": { "type": "string", "required": true, "enum": ["feed", "medication", "equipment", "labor", "utilities", "bird_purchase", "egg_sales", "bird_sales", "manure_sales", "other"] },
@@ -1047,6 +1051,7 @@
           "auth": true,
           "description": "Submit a daily report. Only one report per farm per reference_date. Sends push notification to managers/superusers.",
           "requestBody": {
+            "client_id": { "type": "uuid", "required": false, "description": "Client-generated UUID for idempotent retries. If a record with this client_id already exists in your farm, it is returned with 200 (header Idempotent-Replayed: true) instead of creating a duplicate. Cannot be changed after creation." },
             "reference_date": { "type": "date", "required": true },
             "answers": {
               "type": "array",
