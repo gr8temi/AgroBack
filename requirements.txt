@@ -8,3 +8,4 @@ python-dotenv
 celery
 redis
 exponent_server_sdk
+requests

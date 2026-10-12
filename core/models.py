@@ -3,10 +3,17 @@ import uuid
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+from currencies.constants import SUPPORTED_CURRENCIES, DEFAULT_CURRENCY
+
 class Farm(models.Model):
     name = models.CharField(max_length=255)
     code = models.CharField(max_length=10, unique=True, editable=False)
     owner = models.ForeignKey('User', on_delete=models.CASCADE, related_name='owned_farms')
+    base_currency = models.CharField(max_length=3, choices=SUPPORTED_CURRENCIES, default=DEFAULT_CURRENCY)
+    phone = models.CharField(max_length=20, blank=True, default='')
+    email = models.EmailField(blank=True, default='')
+    address = models.TextField(blank=True, default='')
+    payment_details = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):

@@ -314,7 +314,7 @@ class UserViewSet(viewsets.ModelViewSet):
 class FarmViewSet(viewsets.ModelViewSet):
     serializer_class = FarmSerializer
     permission_classes = [IsAuthenticated]
-    http_method_names = ["get", "head", "options", "post"]
+    http_method_names = ["get", "head", "options", "post", "patch"]
 
     def get_queryset(self):
         if self.request.user.farm:

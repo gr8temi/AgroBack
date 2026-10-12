@@ -44,7 +44,9 @@ INSTALLED_APPS = [
     "core",
     "flocks",
     "finances",
+    "invoices",
     "reports",
+    "currencies",
 ]
 
 MIDDLEWARE = [
@@ -186,7 +188,22 @@ CELERY_BEAT_SCHEDULE = {
         "task": "flocks.tasks.refresh_active_flock_stats",
         "schedule": 3600,
     },
+    "fetch-exchange-rates": {
+        "task": "currencies.tasks.fetch_exchange_rates",
+        "schedule": 21600,
+    },
 }
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0"),
+    }
+}
+
+EXCHANGE_RATE_API_URL = os.environ.get(
+    "EXCHANGE_RATE_API_URL", "https://open.er-api.com/v6/latest"
+)
 
 CELERY_BROKER_TRANSPORT_OPTIONS = {
     "max_retries": 5,

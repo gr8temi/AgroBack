@@ -4,6 +4,7 @@ from django.db import models
 from django.db.models import Sum, Q
 
 from core.models import User, Farm
+from currencies.constants import SUPPORTED_CURRENCIES, DEFAULT_CURRENCY
 
 
 class Flock(models.Model):
@@ -40,6 +41,7 @@ class Flock(models.Model):
     total_mortality = models.PositiveIntegerField(default=0)
     total_income = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_expense = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    currency = models.CharField(max_length=3, choices=SUPPORTED_CURRENCIES, default=DEFAULT_CURRENCY)
 
     class Meta:
         indexes = [
@@ -50,29 +52,42 @@ class Flock(models.Model):
         return self.name
 
     def compute_summary_stats(self):
+        from decimal import Decimal
+        from currencies.utils import convert_amount
+
+        farm_currency = self.farm.base_currency if self.farm else DEFAULT_CURRENCY
+        self.currency = farm_currency
+
         egg_agg = self.egg_collections.aggregate(total=Sum('quantity_collected'))
         self.total_eggs_collected = egg_agg['total'] or 0
 
-        feed_agg = self.feed_logs.aggregate(
-            total_kg=Sum('quantity_kg'),
-            total_cost=Sum('cost'),
-        )
-        self.total_feed_kg = feed_agg['total_kg'] or 0
-        self.total_feed_cost = feed_agg['total_cost'] or 0
+        total_feed_kg = Decimal('0')
+        total_feed_cost = Decimal('0')
+        for log in self.feed_logs.all():
+            total_feed_kg += log.quantity_kg
+            total_feed_cost += convert_amount(log.cost, log.currency, farm_currency)
+        self.total_feed_kg = total_feed_kg
+        self.total_feed_cost = total_feed_cost
 
-        health_agg = self.health_logs.aggregate(
-            total_cost=Sum('cost'),
-            total_mortality=Sum('affected_birds', filter=Q(log_type='mortality')),
-        )
-        self.total_health_cost = health_agg['total_cost'] or 0
-        self.total_mortality = health_agg['total_mortality'] or 0
+        total_health_cost = Decimal('0')
+        total_mortality = 0
+        for log in self.health_logs.all():
+            total_health_cost += convert_amount(log.cost, log.currency, farm_currency)
+            if log.log_type == 'mortality':
+                total_mortality += log.affected_birds
+        self.total_health_cost = total_health_cost
+        self.total_mortality = total_mortality
 
-        tx_agg = self.transactions.aggregate(
-            income=Sum('amount', filter=Q(type='income')),
-            expense=Sum('amount', filter=Q(type='expense')),
-        )
-        self.total_income = tx_agg['income'] or 0
-        self.total_expense = tx_agg['expense'] or 0
+        total_income = Decimal('0')
+        total_expense = Decimal('0')
+        for tx in self.transactions.all():
+            converted = convert_amount(tx.amount, tx.currency, farm_currency)
+            if tx.type == 'income':
+                total_income += converted
+            else:
+                total_expense += converted
+        self.total_income = total_income
+        self.total_expense = total_expense
 
 
 class FeedLog(models.Model):
@@ -81,6 +96,9 @@ class FeedLog(models.Model):
     quantity_kg = models.DecimalField(max_digits=10, decimal_places=2)
     feed_type = models.CharField(max_length=100)
     cost = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    currency = models.CharField(max_length=3, choices=SUPPORTED_CURRENCIES, default=DEFAULT_CURRENCY)
+    original_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    original_currency = models.CharField(max_length=3, null=True, blank=True)
 
     def __str__(self):
         return f"{self.flock.name} - {self.date} - {self.feed_type}"
@@ -97,6 +115,9 @@ class HealthLog(models.Model):
     log_type = models.CharField(max_length=20, choices=LOG_TYPES)
     description = models.TextField()
     cost = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    currency = models.CharField(max_length=3, choices=SUPPORTED_CURRENCIES, default=DEFAULT_CURRENCY)
+    original_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    original_currency = models.CharField(max_length=3, null=True, blank=True)
     affected_birds = models.PositiveIntegerField(default=0)
 
     def __str__(self):

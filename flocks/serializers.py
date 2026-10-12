@@ -1,11 +1,17 @@
 from datetime import date
+from decimal import Decimal
 
 from rest_framework import serializers
+
+from currencies.serializers import CurrencyConversionMixin
 
 from .models import Flock, FeedLog, HealthLog, EggCollection
 
 
-class FlockSerializer(serializers.ModelSerializer):
+class FlockSerializer(CurrencyConversionMixin, serializers.ModelSerializer):
+    currency_fields = ['total_feed_cost', 'total_health_cost', 'total_income', 'total_expense']
+    currency_source_field = 'currency'
+
     cycle_duration_days = serializers.SerializerMethodField()
     net_profit = serializers.SerializerMethodField()
 
@@ -28,6 +34,14 @@ class FlockSerializer(serializers.ModelSerializer):
     def get_net_profit(self, obj):
         return float(obj.total_income - obj.total_expense)
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if 'total_income' in data and 'total_expense' in data:
+            data['net_profit'] = float(
+                Decimal(str(data['total_income'])) - Decimal(str(data['total_expense']))
+            )
+        return data
+
 
 class FlockCloseSerializer(serializers.Serializer):
     closure_reason = serializers.ChoiceField(choices=Flock.CLOSURE_REASON_CHOICES)
@@ -46,13 +60,19 @@ class FlockOwnedMixin:
         return value
 
 
-class FeedLogSerializer(FlockOwnedMixin, serializers.ModelSerializer):
+class FeedLogSerializer(CurrencyConversionMixin, FlockOwnedMixin, serializers.ModelSerializer):
+    currency_fields = ['cost']
+    currency_source_field = 'currency'
+
     class Meta:
         model = FeedLog
         fields = '__all__'
 
 
-class HealthLogSerializer(FlockOwnedMixin, serializers.ModelSerializer):
+class HealthLogSerializer(CurrencyConversionMixin, FlockOwnedMixin, serializers.ModelSerializer):
+    currency_fields = ['cost']
+    currency_source_field = 'currency'
+
     class Meta:
         model = HealthLog
         fields = '__all__'
